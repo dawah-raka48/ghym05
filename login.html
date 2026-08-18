@@ -1,0 +1,29 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#7c9cf5"><link rel="stylesheet" href="css/style.css"><title>تسجيل الدخول - مركز غيم</title></head>
+<body class="login-page"><div class="login-card"><div class="login-logo">☁</div><h1>مركز غيم</h1><p>لضيافة الأطفال</p><div class="login-title">تسجيل الدخول</div><label>كود الدخول<input id="loginCode" type="password" inputmode="numeric" maxlength="12" placeholder="أدخل الكود" onkeydown="if(event.key==='Enter')login()"></label><button class="primary wide" onclick="login()">دخول</button><div id="loginError" class="login-error"></div><small class="login-hint">الكود الافتراضي لأول تشغيل: <b>1234</b></small></div><script src="js/api.js"></script><script src="js/app.js?v=6"></script>
+<script>
+function doLogin(){
+  const input=document.getElementById("loginCode");
+  const error=document.getElementById("loginError");
+  const code=(input.value||"").trim();
+  error.classList.remove("show");
+  if(code===""){
+    error.textContent="أدخل كود الدخول أولاً";
+    error.classList.add("show");
+    return;
+  }
+  if(code===loginCode()){
+    sessionStorage.setItem(AUTH_KEY,"1");
+    location.replace("index.html");
+  }else{
+    error.textContent="كود الدخول غير صحيح";
+    error.classList.add("show");
+    input.focus();
+    input.select();
+  }
+}
+document.querySelector(".primary").onclick=doLogin;
+document.getElementById("loginCode").addEventListener("keydown",e=>{
+  if(e.key==="Enter") doLogin();
+});
+if(isLoggedIn()) location.replace("index.html");
+</script></body></html>
