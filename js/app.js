@@ -1,594 +1,91 @@
 const DBKEY="ghaim_fee_data_v1";
-const empty={students:[],payments:[]};
-function db(){try{return JSON.parse(localStorage.getItem(DBKEY))||empty}catch(e){return empty}}
-function saveDB(d){localStorage.setItem(DBKEY,JSON.stringify(d))}
-function money(n){return Number(n||0).toLocaleString("ar-SA")}
-function today(){return new Date().toISOString().slice(0,10)}
-function toggleMenu(){document.body.classList.toggle("open")}
-function initDashboard(){const d=db();const paid=d.payments.reduce((s,p)=>s+Number(p.amount),0),fees=d.students.reduce((s,x)=>s+Number(x.fees),0);studentsCount.textContent=money(d.students.length);feesTotal.textContent=money(fees);paidTotal.textContent=money(paid);remainingTotal.textContent=money(Math.max(fees-paid,0));todayPayments.innerHTML=d.payments.filter(p=>p.date===today()).slice(-5).reverse().map(p=>{let s=d.students.find(x=>x.id===p.studentId);return row(p,s)}).join("")||'<div class="empty">لا توجد دفعات اليوم</div>';upcoming.innerHTML=buildSchedule(d).slice(0,5).map(x=>`<tr><td>${x.name}</td><td>${x.level}</td><td>${x.date}</td><td>${money(x.amount)} ريال</td><td><span class="status soon">قادمة</span></td></tr>`).join("")||'<tr><td colspan="5">لا توجد مواعيد مسجلة</td></tr>'}
-function row(p,s){return `<div class="payment-row"><div class="person"><div class="avatar-sm">${(s?.name||"?").trim().charAt(0)}</div><div><b>${s?.name||"طالب محذوف"}</b><small>${s?.level||""} · ${p.date}</small></div></div><strong>${money(p.amount)} <small>ريال</small></strong><span class="method ${p.method==="بنكي"?"bank":p.method==="شبكة"?"network":p.method==="قرة"?"qara":"tabby"}">${p.method}</span></div>`}
-function openStudent(){studentModal.classList.add("show");sName.focus()}function closeStudent(){studentModal.classList.remove("show")}
-function saveStudent(){let name=sName.value.trim(),level=sLevel.value,fees=Number(sFees.value);if(!name||!fees)return alert("أدخل اسم الطالب وإجمالي الرسوم");let d=db();d.students.push({id:crypto.randomUUID(),name,level,fees,notes:sNotes.value.trim(),createdAt:today()});saveDB(d);closeStudent();sName.value="";sFees.value="";sNotes.value="";renderStudents();alert("تم حفظ الطالب")}
-function renderStudents(){if(!window.studentsTable)return;let d=db(),q=(studentSearch?.value||"").trim(),l=levelFilter?.value||"";studentsTable.innerHTML=d.students.filter(s=>(!q||s.name.includes(q))&&(!l||s.level===l)).map(s=>{let paid=d.payments.filter(p=>p.studentId===s.id).reduce((a,p)=>a+Number(p.amount),0);return `<tr><td><b>${s.name}</b></td><td>${s.level}</td><td>${money(s.fees)} ريال</td><td>${money(paid)} ريال</td><td>${money(Math.max(s.fees-paid,0))} ريال</td><td><a class="link" href="student.html?id=${s.id}">الملف</a></td></tr>`}).join("")||'<tr><td colspan="6">لا توجد نتائج</td></tr>'}
-function initPayment(){pDate.value=today();let d=db();pStudent.innerHTML='<option value="">اختر الطالب</option>'+d.students.map(s=>`<option value="${s.id}">${s.name} — ${s.level}</option>`).join("")}
-function showBalance(){let d=db(),s=d.students.find(x=>x.id===pStudent.value);if(!s)return balanceBox.textContent="اختر الطالب لمعرفة المتبقي";let paid=d.payments.filter(p=>p.studentId===s.id).reduce((a,p)=>a+Number(p.amount),0);balanceBox.textContent=`إجمالي الرسوم: ${money(s.fees)} ريال · المدفوع: ${money(paid)} ريال · المتبقي: ${money(Math.max(s.fees-paid,0))} ريال`}
-function savePayment(){let d=db(),sid=pStudent.value,amount=Number(pAmount.value);if(!sid||!amount)return alert("اختر الطالب وأدخل المبلغ");let s=d.students.find(x=>x.id===sid),paid=d.payments.filter(p=>p.studentId===sid).reduce((a,p)=>a+Number(p.amount),0);if(amount>Math.max(s.fees-paid,0))return alert("المبلغ أكبر من المتبقي على الطالب");d.payments.push({id:crypto.randomUUID(),studentId:sid,date:pDate.value||today(),amount,method:pMethod.value,ref:pRef.value.trim(),notes:pNotes.value.trim()});saveDB(d);alert("تم حفظ الدفعة بنجاح");location.href="payments.html"}
-function renderPayments(){if(!window.paymentsTable)return;let d=db(),q=(paySearch?.value||"").trim(),l=payLevel?.value||"",m=payMethod?.value||"",f=fromDate?.value||"",t=toDate?.value||"";paymentsTable.innerHTML=d.payments.slice().sort((a,b)=>b.date.localeCompare(a.date)).filter(p=>{let s=d.students.find(x=>x.id===p.studentId);return (!q||s?.name.includes(q))&&(!l||s?.level===l)&&(!m||p.method===m)&&(!f||p.date>=f)&&(!t||p.date<=t)}).map(p=>{let s=d.students.find(x=>x.id===p.studentId);return `<tr><td>${p.date}</td><td>${s?.name||"-"}</td><td>${s?.level||"-"}</td><td>${money(p.amount)} ريال</td><td>${p.method}</td><td>${p.ref||"-"}</td></tr>`}).join("")||'<tr><td colspan="6">لا توجد عمليات</td></tr>'}
-function addDays(date,n){let d=new Date(date+"T12:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}
-function weekday(date){return new Date(date+"T12:00:00").toLocaleDateString("ar-SA",{weekday:"long"})}
-function nextWorkday(date){let d=date;for(let i=0;i<7;i++){let w=new Date(d+"T12:00:00").getDay();if(w!==5&&w!==6)return d;d=addDays(d,1)}}
-function buildSchedule(d){let arr=[];d.students.forEach(s=>{let paid=d.payments.filter(p=>p.studentId===s.id).reduce((a,p)=>a+Number(p.amount),0),rem=s.fees-paid;if(rem<=0)return;let date=nextWorkday(addDays(today(),7));arr.push({name:s.name,level:s.level,date,day:weekday(date),amount:rem})});return arr.sort((a,b)=>a.date.localeCompare(b.date))}
-function renderSchedule(){if(!window.scheduleTable)return;let d=db(),q=(schSearch?.value||"").trim(),l=schLevel?.value||"";scheduleTable.innerHTML=buildSchedule(d).filter(x=>(!q||x.name.includes(q))&&(!l||x.level===l)).map(x=>`<tr><td>${x.name}</td><td>${x.level}</td><td>${x.date}</td><td>${x.day}</td><td>${money(x.amount)} ريال</td></tr>`).join("")||'<tr><td colspan="5">لا توجد مواعيد</td></tr>'}
-function renderReports(){let d=db(),fees=d.students.reduce((a,s)=>a+Number(s.fees),0),paid=d.payments.reduce((a,p)=>a+Number(p.amount),0);rStudents.textContent=money(d.students.length);rFees.textContent=money(fees);rPaid.textContent=money(paid);rRemain.textContent=money(Math.max(fees-paid,0));let methods=["بنكي","شبكة","قرة","تابي"];methodReport.innerHTML=methods.map(m=>{let x=d.payments.filter(p=>p.method===m);return `<tr><td>${m}</td><td>${x.length}</td><td>${money(x.reduce((a,p)=>a+Number(p.amount),0))} ريال</td></tr>`}).join("");levelReport.innerHTML=["تمهيدي","KG1","KG2"].map(l=>{let ss=d.students.filter(s=>s.level===l),ids=new Set(ss.map(s=>s.id)),pp=d.payments.filter(p=>ids.has(p.studentId)),f=ss.reduce((a,s)=>a+Number(s.fees),0),p=pp.reduce((a,x)=>a+Number(x.amount),0);return `<tr><td>${l}</td><td>${ss.length}</td><td>${money(f)}</td><td>${money(p)}</td><td>${money(Math.max(f-p,0))}</td></tr>`}).join("")}
-
 const SETTINGS_KEY="ghaim_fee_settings_v1";
-function settings(){try{return JSON.parse(localStorage.getItem(SETTINGS_KEY))||{levels:["تمهيدي","KG1","KG2"],methods:["بنكي","شبكة","قرة","تابي"]}}catch(e){return {levels:["تمهيدي","KG1","KG2"],methods:["بنكي","شبكة","قرة","تابي"]}}}
-function saveSettings(x){localStorage.setItem(SETTINGS_KEY,JSON.stringify(x))}
-function initStudentPage(){renderLevelOptions();renderStudents()}
-function renderLevelOptions(){let x=settings().levels;if(window.levelFilter)levelFilter.innerHTML='<option value="">كل المستويات</option>'+x.map(v=>`<option>${v}</option>`).join("");if(window.sLevel)sLevel.innerHTML=x.map(v=>`<option>${v}</option>`).join("")}
-function openStudent(id){studentModal.classList.add("show");let d=db(),s=d.students.find(x=>x.id===id);renderLevelOptions();if(s){studentModalTitle.textContent="تعديل بيانات الطالب";sId.value=s.id;sName.value=s.name;sLevel.value=s.level;sFees.value=s.fees;sNotes.value=s.notes||""}else{studentModalTitle.textContent="إضافة طالب";sId.value="";sName.value="";sFees.value="";sNotes.value=""}}
-function closeStudent(){studentModal.classList.remove("show")}
-function saveStudent(){let id=sId.value,name=sName.value.trim(),level=sLevel.value,fees=Number(sFees.value);if(!name||fees<0||!level)return alert("أكمل بيانات الطالب");let d=db();if(id){let s=d.students.find(x=>x.id===id);if(s){s.name=name;s.level=level;s.fees=fees;s.notes=sNotes.value.trim()}}else d.students.push({id:crypto.randomUUID(),name,level,fees,notes:sNotes.value.trim(),createdAt:today()});saveDB(d);closeStudent();renderStudents();alert(id?"تم تعديل بيانات الطالب":"تم حفظ الطالب")}
-function deleteStudent(id){let d=db(),s=d.students.find(x=>x.id===id);if(!s)return;if(!confirm(`حذف الطالب "${s.name}"؟ سيتم حذف سجله المالي أيضًا.`))return;d.students=d.students.filter(x=>x.id!==id);d.payments=d.payments.filter(p=>p.studentId!==id);saveDB(d);renderStudents()}
-function renderStudents(){if(!window.studentsTable)return;let d=db(),q=(studentSearch?.value||"").trim(),l=levelFilter?.value||"";studentsTable.innerHTML=d.students.filter(s=>(!q||s.name.includes(q))&&(!l||s.level===l)).map(s=>{let paid=d.payments.filter(p=>p.studentId===s.id).reduce((a,p)=>a+Number(p.amount),0);return `<tr><td><b>${s.name}</b></td><td>${s.level}</td><td>${money(s.fees)} ريال</td><td>${money(paid)} ريال</td><td>${money(Math.max(s.fees-paid,0))} ريال</td><td><a class="link" href="statement.html?id=${s.id}">كشف</a> · <button class="link" onclick="openStudent('${s.id}')">تعديل</button> · <button class="link danger" onclick="deleteStudent('${s.id}')">حذف</button></td></tr>`}).join("")||'<tr><td colspan="6">لا توجد نتائج</td></tr>'}
-function initPayment(){pDate.value=today();let d=db(),m=settings().methods;pStudent.innerHTML='<option value="">اختر الطالب</option>'+d.students.map(s=>`<option value="${s.id}">${s.name} — ${s.level}</option>`).join("");pMethod.innerHTML=m.map(v=>`<option>${v}</option>`).join("")}
-function renderSettings(){let x=settings();levelsList.innerHTML=x.levels.map((v,i)=>`<div class="setting-row"><b>${v}</b><span><button class="link" onclick="editLevel(${i})">تعديل</button> · <button class="link danger" onclick="deleteLevel(${i})">حذف</button></span></div>`).join("");methodsList.innerHTML=x.methods.map((v,i)=>`<div class="setting-row"><b>${v}</b><span><button class="link" onclick="editMethod(${i})">تعديل</button> · <button class="link danger" onclick="deleteMethod(${i})">حذف</button></span></div>`).join("")}
-function addLevel(){let v=prompt("اسم المستوى الجديد:");if(!v?.trim())return;let x=settings();if(x.levels.includes(v.trim()))return alert("المستوى موجود");x.levels.push(v.trim());saveSettings(x);renderSettings()}
-function editLevel(i){let x=settings(),v=prompt("تعديل اسم المستوى:",x.levels[i]);if(!v?.trim())return;let old=x.levels[i];x.levels[i]=v.trim();let d=db();d.students.forEach(s=>{if(s.level===old)s.level=x.levels[i]});saveDB(d);saveSettings(x);renderSettings()}
-function deleteLevel(i){let x=settings(),name=x.levels[i],used=db().students.some(s=>s.level===name);if(used)return alert("لا يمكن حذف مستوى مستخدم من الطلاب. عدّل الطلاب أولاً.");if(!confirm("حذف المستوى؟"))return;x.levels.splice(i,1);saveSettings(x);renderSettings()}
-function addMethod(){let v=prompt("اسم طريقة الدفع الجديدة:");if(!v?.trim())return;let x=settings();if(x.methods.includes(v.trim()))return alert("طريقة الدفع موجودة");x.methods.push(v.trim());saveSettings(x);renderSettings()}
-function editMethod(i){let x=settings(),v=prompt("تعديل طريقة الدفع:",x.methods[i]);if(!v?.trim())return;let old=x.methods[i];x.methods[i]=v.trim();let d=db();d.payments.forEach(p=>{if(p.method===old)p.method=x.methods[i]});saveDB(d);saveSettings(x);renderSettings()}
-function deleteMethod(i){let x=settings(),name=x.methods[i],used=db().payments.some(p=>p.method===name);if(used)return alert("لا يمكن حذف طريقة دفع مستخدمة في عمليات سابقة.");if(!confirm("حذف طريقة الدفع؟"))return;x.methods.splice(i,1);saveSettings(x);renderSettings()}
-function renderStatement(){let id=new URLSearchParams(location.search).get("id"),d=db(),s=d.students.find(x=>x.id===id);if(!s){statementTitle.textContent="الطالب غير موجود";return}let ps=d.payments.filter(p=>p.studentId===id).sort((a,b)=>a.date.localeCompare(b.date)),paid=ps.reduce((a,p)=>a+Number(p.amount),0);statementTitle.textContent="كشف حساب — "+s.name;stName.textContent=s.name;stLevel.textContent=s.level;stFees.textContent=money(s.fees);stRemain.textContent=money(Math.max(s.fees-paid,0));statementTable.innerHTML=ps.map((p,i)=>`<tr><td>${i+1}</td><td>${p.date}</td><td>${money(p.amount)} ريال</td><td>${p.method}</td><td>${p.ref||"-"}</td><td>${p.notes||"-"}</td></tr>`).join("")||'<tr><td colspan="6">لا توجد دفعات مسجلة</td></tr>'}
-function initFilters(){if(window.payLevel)payLevel.innerHTML='<option value="">كل المستويات</option>'+settings().levels.map(v=>`<option>${v}</option>`).join("");if(window.payMethod)payMethod.innerHTML='<option value="">كل طرق الدفع</option>'+settings().methods.map(v=>`<option>${v}</option>`).join("")}function initSchedule(){if(window.schLevel)schLevel.innerHTML='<option value="">كل المستويات</option>'+settings().levels.map(v=>`<option>${v}</option>`).join("")}
-const AUTH_KEY="ghaim_auth_v1", CODE_KEY="ghaim_login_code_v1";
-function loginCode(){return localStorage.getItem(CODE_KEY)||"1234"}
-function isLoggedIn(){return sessionStorage.getItem(AUTH_KEY)==="1"}
-function login(){let c=(document.getElementById("loginCode")?.value||"").trim();if(c===loginCode()){sessionStorage.setItem(AUTH_KEY,"1");location.href="index.html"}else{document.getElementById("loginError").textContent="كود الدخول غير صحيح";document.getElementById("loginError").classList.add("show")}}
-function logout(){sessionStorage.removeItem(AUTH_KEY);location.href="login.html"}
-function changeLoginCode(){let old=prompt("أدخل الكود الحالي:");if(old!==loginCode())return alert("الكود الحالي غير صحيح");let n=prompt("أدخل الكود الجديد (4 أرقام أو أكثر):");if(!n||n.length<4)return alert("الكود يجب أن يكون 4 أرقام أو أكثر");if(!/^\d+$/.test(n))return alert("استخدم أرقامًا فقط");localStorage.setItem(CODE_KEY,n);alert("تم تغيير كود الدخول")}
-function protectPage(){if(!isLoggedIn())location.replace("login.html")}
-if(!location.pathname.endsWith("/login.html")&&!location.pathname.endsWith("login.html"))protectPage();
+const AUTH_KEY="ghaim_auth_v1";
+const DEFAULT_SETTINGS={loginCode:"1234",levels:["تمهيدي","KG1","KG2"],methods:["بنكي","شبكة","قرة","تابي"]};
+const EMPTY={students:[],payments:[]};
 
-function settings(){try{let x=JSON.parse(localStorage.getItem(SETTINGS_KEY));if(!x)x={levels:["تمهيدي","KG1","KG2","KG3"],methods:["بنكي","شبكة","قرة","تابي"]};if(!x.levels.includes("KG3"))x.levels.push("KG3");return x}catch(e){return {levels:["تمهيدي","KG1","KG2","KG3"],methods:["بنكي","شبكة","قرة","تابي"]}}}
-function initStudentPage(){renderLevelOptions();sCreated.value=today();renderLevelCards();renderStudents()}
-function renderLevelCards(){if(!window.levelCards)return;let d=db(),x=settings();levelCards.innerHTML=x.levels.map(l=>`<div class="level-card" onclick="levelFilter.value='${l}';renderStudents()"><small>عدد الأطفال</small><strong>${d.students.filter(s=>s.level===l).length}</strong><span>${l}</span></div>`).join("")}
-function nextStudentNumber(){let n=db().students.map(s=>parseInt(s.number,10)).filter(Number.isFinite);return String((n.length?Math.max(...n):1000)+1)}
-function openStudent(id){studentModal.classList.add("show");renderLevelOptions();let d=db(),s=d.students.find(x=>x.id===id);if(s){studentModalTitle.textContent="تعديل بيانات الطالب";sId.value=s.id;sNumber.value=s.number||"";sName.value=s.name;sLevel.value=s.level;sCreated.value=s.createdAt||today();sFees.value=s.fees;sNotes.value=s.notes||""}else{studentModalTitle.textContent="إضافة طالب";sId.value="";sNumber.value=nextStudentNumber();sName.value="";sCreated.value=today();sFees.value="";sNotes.value=""}}
-function saveStudent(){let id=sId.value,name=sName.value.trim(),number=sNumber.value.trim(),level=sLevel.value,fees=Number(sFees.value),created=sCreated.value||today();if(!name||!number||!level||fees<0)return alert("أكمل بيانات الطالب");let d=db();if(id){let s=d.students.find(x=>x.id===id);Object.assign(s,{name,number,level,fees,createdAt:created,notes:sNotes.value.trim()})}else d.students.push({id:crypto.randomUUID(),number,name,level,fees,notes:sNotes.value.trim(),createdAt:created});saveDB(d);closeStudent();renderLevelCards();renderStudents();alert(id?"تم تعديل بيانات الطالب":"تم تسجيل الطالب بنجاح")}
-function renderStudents(){if(!window.studentsTable)return;let d=db(),q=(studentSearch?.value||"").trim(),l=levelFilter?.value||"";studentsTable.innerHTML=d.students.filter(s=>(!q||s.name.includes(q)||String(s.number).includes(q))&&(!l||s.level===l)).map(s=>{let p=d.payments.filter(x=>x.studentId===s.id).reduce((a,x)=>a+Number(x.amount),0);return `<tr><td>${s.number||"-"}</td><td><b>${s.name}</b></td><td>${s.level}</td><td>${s.createdAt||"-"}</td><td>${money(s.fees)} ريال</td><td>${money(p)} ريال</td><td>${money(Math.max(s.fees-p,0))} ريال</td><td><a class="link" href="statement.html?id=${s.id}">كشف</a> · <button class="link" onclick="openStudent('${s.id}')">تعديل</button> · <button class="link danger" onclick="deleteStudent('${s.id}')">حذف</button></td></tr>`}).join("")||'<tr><td colspan="8">لا توجد نتائج</td></tr>'}
-let currentReportPeriod="day";
-function periodDates(p){let n=new Date(),s=new Date(n);if(p==="week")s.setDate(n.getDate()-n.getDay());if(p==="month")s=new Date(n.getFullYear(),n.getMonth(),1);return {start:s.toISOString().slice(0,10),end:n.toISOString().slice(0,10)}}
-function setReportPeriod(p,b){currentReportPeriod=p;document.querySelectorAll(".report-tabs button").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderReports()}
-function renderReports(){let d=db(),pd=periodDates(currentReportPeriod),fresh=d.students.filter(s=>(s.createdAt||"")>=pd.start&&(s.createdAt||"")<=pd.end),names={day:"اليومي",week:"الأسبوعي",month:"الشهري"},labs={day:"اليوم",week:"هذا الأسبوع",month:"هذا الشهر"};reportPeriodTitle.textContent="التقرير "+names[currentReportPeriod];oldCount.textContent=money(d.students.length-fresh.length);newCount.textContent=money(fresh.length);totalCount.textContent=money(d.students.length);newListTitle.textContent="الأطفال الجدد خلال "+labs[currentReportPeriod];newStudentsTable.innerHTML=fresh.map(s=>`<tr><td>${s.number||"-"}</td><td>${s.name}</td><td>${s.level}</td><td>${s.createdAt||"-"}</td><td>${money(s.fees)} ريال</td></tr>`).join("")||'<tr><td colspan="5">لا توجد تسجيلات جديدة</td></tr>';let x=settings();methodReport.innerHTML=x.methods.map(m=>{let p=d.payments.filter(v=>v.method===m&&v.date>=pd.start&&v.date<=pd.end);return `<tr><td>${m}</td><td>${p.length}</td><td>${money(p.reduce((a,v)=>a+Number(v.amount),0))} ريال</td></tr>`}).join("");levelReport.innerHTML=x.levels.map(l=>{let ss=d.students.filter(s=>s.level===l),ids=new Set(ss.map(s=>s.id)),pp=d.payments.filter(p=>ids.has(p.studentId)),f=ss.reduce((a,s)=>a+Number(s.fees),0),pay=pp.reduce((a,p)=>a+Number(p.amount),0);return `<tr><td>${l}</td><td>${ss.length}</td><td>${money(f)}</td><td>${money(pay)}</td><td>${money(Math.max(f-pay,0))}</td></tr>`}).join("")}
+function esc(v){return String(v??"").replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[m]));}
+function db(){try{const d=JSON.parse(localStorage.getItem(DBKEY)||"null");return {students:Array.isArray(d?.students)?d.students:[],payments:Array.isArray(d?.payments)?d.payments:[]};}catch(e){return JSON.parse(JSON.stringify(EMPTY));}}
+function saveDB(d){localStorage.setItem(DBKEY,JSON.stringify(d));}
+function settings(){try{return {...DEFAULT_SETTINGS,...JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}")};}catch(e){return {...DEFAULT_SETTINGS};}}
+function saveSettings(s){localStorage.setItem(SETTINGS_KEY,JSON.stringify(s));}
+function money(n){const x=Number(n);return Number.isFinite(x)?x.toLocaleString("ar-SA",{maximumFractionDigits:2}):"0";}
+function localDate(d=new Date()){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return `${y}-${m}-${day}`;}
+function today(){return localDate();}
+function addDays(date,n){const d=new Date(`${date}T12:00:00`);d.setDate(d.getDate()+n);return localDate(d);}
+function weekday(date){return new Intl.DateTimeFormat("ar-SA",{weekday:"long"}).format(new Date(`${date}T12:00:00`));}
+function nextWorkday(date){let d=date;do{d=addDays(d,1);}while([5,6].includes(new Date(`${d}T12:00:00`).getDay()));return d;}
+function validDate(v){return /^\d{4}-\d{2}-\d{2}$/.test(String(v||""));}
+function uid(prefix="id"){return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,9)}`;}
+function notify(msg,type="ok"){let n=document.getElementById("appNotice");if(!n){n=document.createElement("div");n.id="appNotice";n.style.cssText="position:fixed;top:18px;left:18px;z-index:9999;max-width:360px;padding:12px 16px;border-radius:12px;background:#fff;box-shadow:0 8px 30px #0002;font-weight:700";document.body.appendChild(n);}n.textContent=msg;n.style.border=`2px solid ${type==="error"?"#b42318":"#17834b"}`;clearTimeout(window.__noticeTimer);window.__noticeTimer=setTimeout(()=>n.remove(),3500);}
+function loginCode(){return settings().loginCode||"1234";}
+function isLoggedIn(){return sessionStorage.getItem(AUTH_KEY)==="1";}
+function logout(){sessionStorage.removeItem(AUTH_KEY);location.href="login.html";}
+function requireAuth(){if(!location.pathname.endsWith("login.html")&&!isLoggedIn())location.replace("login.html");}
+function toggleMenu(){document.querySelector(".sidebar")?.classList.toggle("open");}
+function studentById(id){return db().students.find(s=>s.id===id);}
+function paymentsFor(id){return db().payments.filter(p=>p.studentId===id);}
+function paidFor(id){return paymentsFor(id).reduce((a,p)=>a+Number(p.amount||0),0);}
+function remainingFor(s){return Math.max(Number(s.fees||0)-paidFor(s.id),0);}
+function normalizePhone(v){return String(v||"").replace(/\s+/g,"").replace(/^\+966/,"0");}
+function validatePhone(v){const p=normalizePhone(v);return !p||/^05\d{8}$/.test(p);}
+function fillSelect(id,items,withAll=false){const el=document.getElementById(id);if(!el)return;const old=el.value;el.innerHTML=(withAll?'<option value="">الكل</option>':"")+items.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");if(items.includes(old))el.value=old;}
 
-/* =====================================================
-   Google Sheets Remote Sync
-===================================================== */
-let remoteLoading = false;
-
-function normalizeRemoteData(raw) {
-  const students = (raw.students || []).map(s => ({
-    id: String(s.id || ""),
-    number: String(s.number || ""),
-    name: String(s.name || ""),
-    level: String(s.level || ""),
-    fees: Number(s.fees || 0),
-    notes: String(s.notes || ""),
-    createdAt: String(s.createdAt || "").slice(0,10),
-    status: String(s.status || "active")
-  })).filter(s => s.status !== "deleted");
-
-  const payments = (raw.payments || []).map(p => ({
-    id: String(p.id || ""),
-    studentId: String(p.studentId || ""),
-    date: String(p.date || "").slice(0,10),
-    amount: Number(p.amount || 0),
-    method: String(p.method || ""),
-    ref: String(p.ref || ""),
-    notes: String(p.notes || ""),
-    createdAt: String(p.createdAt || "")
-  }));
-
-  const levels = (raw.levels || []).filter(x => String(x.status || "active") === "active").map(x => String(x.name || "")).filter(Boolean);
-  const methods = (raw.methods || []).filter(x => String(x.status || "active") === "active").map(x => String(x.name || "")).filter(Boolean);
-
-  return {
-    students,
-    payments,
-    levels: levels.length ? levels : ["تمهيدي","KG1","KG2","KG3"],
-    methods: methods.length ? methods : ["بنكي","شبكة","قرة","تابي"],
-    settings: raw.settings || []
-  };
+function openStudent(id){
+ const modal=document.getElementById("studentModal");if(!modal)return;
+ const s=id?studentById(id):null;document.getElementById("studentModalTitle").textContent=s?"تعديل بيانات الطالب":"إضافة طالب";
+ document.getElementById("sId").value=s?.id||"";document.getElementById("sNumber").value=s?.number||"";document.getElementById("sName").value=s?.name||"";document.getElementById("sGuardianPhone").value=s?.guardianPhone||"";document.getElementById("sCreated").value=s?.created||today();document.getElementById("sFees").value=s?.fees??"";document.getElementById("sNotes").value=s?.notes||"";
+ if(document.getElementById("sDueDate"))document.getElementById("sDueDate").value=s?.nextPaymentDate||nextWorkday(today());
+ fillSelect("sLevel",settings().levels);if(s)document.getElementById("sLevel").value=s.level||settings().levels[0];modal.classList.add("show");
 }
-
-function applyRemoteData(raw) {
-  const x = normalizeRemoteData(raw);
-  localStorage.setItem(DBKEY, JSON.stringify({students:x.students, payments:x.payments}));
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify({levels:x.levels, methods:x.methods}));
-  return x;
+function closeStudent(){document.getElementById("studentModal")?.classList.remove("show");}
+function saveStudent(btn){
+ if(btn?.disabled)return;const name=document.getElementById("sName")?.value.trim(),number=document.getElementById("sNumber")?.value.trim(),level=document.getElementById("sLevel")?.value,created=document.getElementById("sCreated")?.value,fees=Number(document.getElementById("sFees")?.value||0),phone=normalizePhone(document.getElementById("sGuardianPhone")?.value),due=document.getElementById("sDueDate")?.value,notes=document.getElementById("sNotes")?.value.trim(),id=document.getElementById("sId")?.value;
+ if(!name)return notify("اكتب اسم الطالب","error");if(!number)return notify("اكتب رقم الطالب","error");if(!level)return notify("اختر المرحلة","error");if(!validDate(created))return notify("تاريخ التسجيل غير صحيح","error");if(!Number.isFinite(fees)||fees<0)return notify("الرسوم يجب أن تكون رقمًا صحيحًا أو صفرًا","error");if(!validatePhone(phone))return notify("رقم ولي الأمر يجب أن يكون 05xxxxxxxx","error");if(due&&!validDate(due))return notify("تاريخ الدفعة القادمة غير صحيح","error");
+ const d=db(),dup=d.students.find(s=>s.number===number&&s.id!==id&&s.active!==false);if(dup)return notify("رقم الطالب مستخدم بالفعل","error");btn.disabled=true;
+ const obj={id:id||uid("stu"),number,name,guardianPhone:phone,level,created,fees,nextPaymentDate:due||nextWorkday(created),notes,active:true,updatedAt:new Date().toISOString()};const i=d.students.findIndex(s=>s.id===obj.id);if(i>=0)d.students[i]={...d.students[i],...obj};else d.students.push(obj);saveDB(d);btn.disabled=false;closeStudent();renderStudents();notify("تم حفظ بيانات الطالب");}
+function initStudentPage(){requireAuth();fillSelect("sLevel",settings().levels);fillSelect("levelFilter",settings().levels,true);renderStudents();}
+function renderStudents(){
+ const d=db(),q=(document.getElementById("studentSearch")?.value||"").trim().toLowerCase(),lf=document.getElementById("levelFilter")?.value||"";const active=d.students.filter(s=>s.active!==false);const rows=active.filter(s=>(!q||[s.name,s.number,s.guardianPhone].some(v=>String(v||"").toLowerCase().includes(q)))&&(!lf||s.level===lf));
+ const body=document.getElementById("studentsTable");if(body)body.innerHTML=rows.map(s=>`<tr><td>${esc(s.number)}</td><td><a href="student.html?id=${encodeURIComponent(s.id)}">${esc(s.name)}</a></td><td>${esc(s.guardianPhone||"-")}</td><td>${esc(s.level)}</td><td>${esc(s.created||"-")}</td><td>${money(s.fees)} ريال</td><td>${money(paidFor(s.id))} ريال</td><td>${money(remainingFor(s))} ريال</td><td><button class="outline" onclick="openStudent('${esc(s.id)}')">تعديل</button> <button class="outline danger" onclick="archiveStudent('${esc(s.id)}')">أرشفة</button></td></tr>`).join("")||'<tr><td colspan="9">لا توجد نتائج</td></tr>';
+ const cards=document.getElementById("levelCards");if(cards)cards.innerHTML=settings().levels.map(l=>{const a=active.filter(s=>s.level===l);return `<div class="stat"><small>${esc(l)}</small><strong>${a.length}</strong><em>${money(a.reduce((x,s)=>x+remainingFor(s),0))} ريال متبقي</em></div>`}).join("");
 }
+function archiveStudent(id){const s=studentById(id);if(!s||!confirm(`أرشفة الطالب ${s.name}؟ لن يتم حذف سجل المدفوعات.`))return;const d=db(),x=d.students.find(v=>v.id===id);if(x){x.active=false;x.archivedAt=new Date().toISOString();saveDB(d);renderStudents();notify("تمت أرشفة الطالب مع حفظ سجله المالي");}}
 
-async function refreshFromGoogle(showError=false) {
-  if (remoteLoading) return false;
-  remoteLoading = true;
-  try {
-    const data = await apiGet("getData");
-    applyRemoteData(data);
-    rerenderCurrentPage();
-    return true;
-  } catch (e) {
-    console.error("Google Sheets sync:", e);
-    if (showError) alert("تعذر الاتصال بقاعدة بيانات مركز غيم. تأكد من اتصال الإنترنت.");
-    return false;
-  } finally {
-    remoteLoading = false;
-  }
+function initPayment(){requireAuth();const d=db();const sel=document.getElementById("pStudent");if(sel){sel.innerHTML='<option value="">اختر الطالب</option>'+d.students.filter(s=>s.active!==false).map(s=>`<option value="${esc(s.id)}">${esc(s.name)} — ${esc(s.number)}</option>`).join("");}if(document.getElementById("pDate"))document.getElementById("pDate").value=today();if(document.getElementById("pMethod")){const old=document.getElementById("pMethod").value;fillSelect("pMethod",settings().methods);if(settings().methods.includes(old))document.getElementById("pMethod").value=old;}showBalance();}
+function showBalance(){const s=studentById(document.getElementById("pStudent")?.value);const b=document.getElementById("balanceBox");if(!b)return;b.textContent=s?`المتبقي على ${s.name}: ${money(remainingFor(s))} ريال`:'اختر الطالب لمعرفة المتبقي';}
+function savePayment(btn){
+ if(btn?.disabled)return;const sid=document.getElementById("pStudent")?.value,date=document.getElementById("pDate")?.value,amount=Number(document.getElementById("pAmount")?.value||0),method=document.getElementById("pMethod")?.value,ref=document.getElementById("pRef")?.value.trim(),notes=document.getElementById("pNotes")?.value.trim();const s=studentById(sid);if(!s)return notify("اختر الطالب","error");if(!validDate(date))return notify("تاريخ الدفع غير صحيح","error");if(!Number.isFinite(amount)||amount<=0)return notify("أدخل مبلغًا أكبر من صفر","error");if(!settings().methods.includes(method))return notify("طريقة الدفع غير معتمدة","error");const rem=remainingFor(s);if(amount>rem)return notify(`المبلغ أكبر من المتبقي (${money(rem)} ريال)` ,"error");if(ref){const duplicate=db().payments.find(p=>p.ref===ref&&p.ref!=="");if(duplicate)return notify("رقم المرجع مستخدم مسبقًا","error");}btn.disabled=true;const d=db();d.payments.push({id:uid("pay"),studentId:sid,date,amount,method,ref,notes,createdAt:new Date().toISOString()});saveDB(d);btn.disabled=false;notify("تم حفظ الدفعة");setTimeout(()=>location.href=`student.html?id=${encodeURIComponent(sid)}`,300);}
+
+function initFilters(){requireAuth();}
+function renderPayments(){
+ const d=db(),q=(document.getElementById("paySearch")?.value||"").trim().toLowerCase(),level=document.getElementById("payLevel")?.value||"",method=document.getElementById("payMethod")?.value||"",from=document.getElementById("fromDate")?.value||"",to=document.getElementById("toDate")?.value||"";const rows=d.payments.filter(p=>{const s=studentById(p.studentId);if(!s)return false;return (!q||s.name.toLowerCase().includes(q)||String(s.number).includes(q))&&(!level||s.level===level)&&(!method||p.method===method)&&(!from||p.date>=from)&&(!to||p.date<=to);});const body=document.getElementById("paymentsTable");if(!body)return;body.innerHTML=rows.slice().sort((a,b)=>b.date.localeCompare(a.date)||String(b.createdAt).localeCompare(String(a.createdAt))).map(p=>{const s=studentById(p.studentId);return `<tr><td>${esc(p.date)}</td><td>${esc(s?.name||"طالب محذوف")}</td><td>${esc(s?.level||"-")}</td><td>${money(p.amount)} ريال</td><td>${esc(p.method)}</td><td>${esc(p.ref||"-")}</td>${document.querySelector("#paymentsTable")?.closest("table")?.querySelector("th:last-child")?.textContent==="إجراءات"?`<td><button class="outline" onclick="editPayment('${esc(p.id)}')">تعديل</button> <button class="outline danger" onclick="deletePayment('${esc(p.id)}')">حذف</button></td>`:""}</tr>`}).join("")||'<tr><td colspan="7">لا توجد دفعات</td></tr>';
 }
+function editPayment(id){const p=db().payments.find(x=>x.id===id);if(!p)return;const amount=prompt("المبلغ الجديد",p.amount);if(amount===null)return;const n=Number(amount);if(!Number.isFinite(n)||n<=0)return notify("المبلغ غير صحيح","error");const s=studentById(p.studentId),other=paidFor(s.id)-Number(p.amount);if(n>Math.max(Number(s.fees||0)-other,0))return notify("المبلغ يتجاوز المتبقي","error");p.amount=n;saveDB(db());renderPayments();notify("تم تعديل الدفعة");}
+function deletePayment(id){const d=db(),p=d.payments.find(x=>x.id===id);if(!p||!confirm("حذف الدفعة؟ سيتم الاحتفاظ بالسجل فقط إذا كان لديك نسخة خارجية."))return;d.payments=d.payments.filter(x=>x.id!==id);saveDB(d);renderPayments();notify("تم حذف الدفعة");}
 
-function rerenderCurrentPage() {
-  try { if (window.location.pathname.endsWith("index.html") || window.location.pathname === "/") initDashboard(); } catch(e){}
-  try { if (window.studentsTable) { renderLevelOptions(); renderLevelCards(); renderStudents(); } } catch(e){}
-  try { if (window.pStudent) initPayment(); } catch(e){}
-  try { if (window.paymentsTable) { initFilters(); renderPayments(); } } catch(e){}
-  try { if (window.scheduleTable) { initSchedule(); renderSchedule(); } } catch(e){}
-  try { if (window.levelsList) renderSettings(); } catch(e){}
-  try { if (window.reportPeriodTitle) renderReports(); } catch(e){}
-  try { if (window.statementTable) renderStatement(); } catch(e){}
-}
+let reportPeriod="day";
+function periodRange(period){const end=today(),start=period==="day"?end:period==="week"?addDays(end,-6):`${end.slice(0,7)}-01`;return {start,end};}
+function setReportPeriod(period,btn){reportPeriod=period;document.querySelectorAll(".report-tabs button").forEach(b=>b.classList.remove("active"));btn?.classList.add("active");renderReports();}
+function renderReports(){
+ requireAuth();const d=db(),{start,end}=periodRange(reportPeriod),newStudents=d.students.filter(s=>s.created>=start&&s.created<=end&&s.active!==false),old=d.students.filter(s=>s.created<start&&s.active!==false),payments=d.payments.filter(p=>p.date>=start&&p.date<=end);document.getElementById("reportPeriodTitle")&&(document.getElementById("reportPeriodTitle").textContent=`التقرير ${reportPeriod==="day"?"اليومي":reportPeriod==="week"?"الأسبوعي":"الشهري"}`);["oldCount","newCount","totalCount"].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.textContent=i===0?old.length:i===1?newStudents.length:old.length+newStudents.length;});const nl=document.getElementById("newStudentsTable");if(nl)nl.innerHTML=newStudents.map(s=>`<tr><td>${esc(s.number)}</td><td>${esc(s.name)}</td><td>${esc(s.level)}</td><td>${esc(s.created)}</td><td>${money(s.fees)} ريال</td></tr>`).join("")||'<tr><td colspan="5">لا توجد تسجيلات جديدة</td></tr>';
+ const mr=document.getElementById("methodReport");if(mr)mr.innerHTML=settings().methods.map(m=>{const ps=payments.filter(p=>p.method===m);return `<tr><td>${esc(m)}</td><td>${ps.length}</td><td>${money(ps.reduce((a,p)=>a+Number(p.amount),0))} ريال</td></tr>`}).join("");const lr=document.getElementById("levelReport");if(lr)lr.innerHTML=settings().levels.map(l=>{const ss=d.students.filter(s=>s.level===l&&s.active!==false),fees=ss.reduce((a,s)=>a+Number(s.fees||0),0),paid=ss.reduce((a,s)=>a+paidFor(s.id),0);return `<tr><td>${esc(l)}</td><td>${ss.length}</td><td>${money(fees)} ريال</td><td>${money(paid)} ريال</td><td>${money(Math.max(fees-paid,0))} ريال</td></tr>`}).join("");}
 
-/* Remote-aware student operations */
-async function saveStudent() {
-  const id=sId.value, name=sName.value.trim(), number=sNumber.value.trim(), level=sLevel.value;
-  const fees=Number(sFees.value), created=sCreated.value||today();
-  if(!name||!number||!level||fees<0) return alert("أكمل بيانات الطالب");
-  try {
-    const payload={id,number,name,level,fees,createdAt:created,notes:sNotes.value.trim(),status:"active"};
-    await apiPost(id ? "updateStudent" : "addStudent", payload);
-    await refreshFromGoogle();
-    closeStudent();
-    renderLevelCards(); renderStudents();
-    alert(id ? "تم تعديل بيانات الطالب" : "تم تسجيل الطالب بنجاح");
-  } catch(e) { alert(e.message); }
-}
+function buildSchedule(d){return d.students.filter(s=>s.active!==false).map(s=>({name:s.name,level:s.level,date:s.nextPaymentDate&&validDate(s.nextPaymentDate)?s.nextPaymentDate:nextWorkday(today()),day:weekday(s.nextPaymentDate&&validDate(s.nextPaymentDate)?s.nextPaymentDate:nextWorkday(today())),amount:remainingFor(s),id:s.id})).filter(x=>x.amount>0).sort((a,b)=>a.date.localeCompare(b.date));}
+function initSchedule(){requireAuth();fillSelect("schLevel",settings().levels,true);}
+function renderSchedule(){const q=(document.getElementById("schSearch")?.value||"").trim().toLowerCase(),l=document.getElementById("schLevel")?.value||"",body=document.getElementById("scheduleTable");if(!body)return;const rows=buildSchedule(db()).filter(x=>(!q||x.name.toLowerCase().includes(q))&&(!l||x.level===l));body.innerHTML=rows.map(x=>`<tr><td><a href="student.html?id=${encodeURIComponent(x.id)}">${esc(x.name)}</a></td><td>${esc(x.level)}</td><td>${esc(x.date)}</td><td>${esc(x.day)}</td><td>${money(x.amount)} ريال</td></tr>`).join("")||'<tr><td colspan="5">لا توجد مواعيد مستحقة</td></tr>';}
 
-async function deleteStudent(id) {
-  const d=db(), s=d.students.find(x=>x.id===id); if(!s)return;
-  if(!confirm(`حذف الطالب "${s.name}"؟ سيتم حذف سجله المالي أيضًا.`))return;
-  try { await apiPost("deleteStudent",{id}); await refreshFromGoogle(); renderLevelCards(); renderStudents(); }
-  catch(e){ alert(e.message); }
-}
+function renderSettings(){requireAuth();const s=settings(),lv=document.getElementById("levelsList"),mt=document.getElementById("methodsList");if(lv)lv.innerHTML=s.levels.map((x,i)=>`<div class="setting-row"><span>${esc(x)}</span><button class="outline" onclick="removeLevel(${i})">حذف</button></div>`).join("");if(mt)mt.innerHTML=s.methods.map((x,i)=>`<div class="setting-row"><span>${esc(x)}</span><button class="outline" onclick="removeMethod(${i})">حذف</button></div>`).join("");}
+function addLevel(){const x=prompt("اسم المستوى");if(!x?.trim())return;const s=settings();if(s.levels.includes(x.trim()))return notify("المستوى موجود بالفعل","error");s.levels.push(x.trim());saveSettings(s);renderSettings();}
+function removeLevel(i){const s=settings();if(s.levels.length<=1)return notify("يجب إبقاء مستوى واحد على الأقل","error");if(!confirm(`حذف المستوى ${s.levels[i]}؟`))return;s.levels.splice(i,1);saveSettings(s);renderSettings();}
+function addMethod(){const x=prompt("اسم طريقة الدفع");if(!x?.trim())return;const s=settings();if(s.methods.includes(x.trim()))return notify("طريقة الدفع موجودة بالفعل","error");s.methods.push(x.trim());saveSettings(s);renderSettings();}
+function removeMethod(i){const s=settings();if(s.methods.length<=1)return notify("يجب إبقاء طريقة دفع واحدة على الأقل","error");if(!confirm(`حذف طريقة الدفع ${s.methods[i]}؟`))return;s.methods.splice(i,1);saveSettings(s);renderSettings();}
+function changeLoginCode(){const old=prompt("الكود الحالي");if(old!==loginCode())return notify("الكود الحالي غير صحيح","error");const n=prompt("الكود الجديد (4 أحرف/أرقام على الأقل)");if(!n||n.length<4)return notify("الكود يجب أن يكون 4 أحرف/أرقام على الأقل","error");const s=settings();s.loginCode=n;saveSettings(s);notify("تم تغيير كود الدخول");}
 
-async function savePayment() {
-  const sid=pStudent.value, amount=Number(pAmount.value);
-  if(!sid||!amount)return alert("اختر الطالب وأدخل المبلغ");
-  try {
-    await apiPost("addPayment",{studentId:sid,date:pDate.value||today(),amount,method:pMethod.value,ref:pRef.value.trim(),notes:pNotes.value.trim()});
-    await refreshFromGoogle();
-    alert("تم حفظ الدفعة بنجاح");
-    location.href="payments.html";
-  } catch(e){ alert(e.message); }
-}
+function initDashboard(){requireAuth();const d=db(),active=d.students.filter(s=>s.active!==false),fees=active.reduce((a,s)=>a+Number(s.fees||0),0),paid=d.payments.reduce((a,p)=>a+Number(p.amount||0),0);const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};set("studentCount",active.length);set("feesTotal",money(fees));set("paidTotal",money(paid));set("remainingTotal",money(Math.max(fees-paid,0)));const lp=document.getElementById("latestPayments");if(lp){lp.innerHTML=d.payments.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,8).map(p=>{const s=studentById(p.studentId);return `<tr><td>${esc(p.date)}</td><td>${esc(s?.name||"-")}</td><td>${money(p.amount)} ريال</td><td>${esc(p.method)}</td></tr>`}).join("")||'<tr><td colspan="4">لا توجد دفعات</td></tr>';}const sch=document.getElementById("upcomingSchedule");if(sch)sch.innerHTML=buildSchedule(d).slice(0,8).map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.date)}</td><td>${money(x.amount)} ريال</td></tr>`).join("")||'<tr><td colspan="3">لا توجد مواعيد</td></tr>';}
 
-/* Remote-aware settings */
-async function addLevel(){
-  const v=prompt("اسم المستوى الجديد:"); if(!v?.trim())return;
-  try { await apiPost("addLevel",{name:v.trim()}); await refreshFromGoogle(); renderSettings(); }
-  catch(e){alert(e.message)}
-}
-async function editLevel(i){
-  const x=settings(), v=prompt("تعديل اسم المستوى:",x.levels[i]); if(!v?.trim())return;
-  /* Find server ID from the current remote dataset */
-  try {
-    const remote=await apiGet("getData");
-    const item=(remote.levels||[]).find(z=>String(z.name)===String(x.levels[i]));
-    if(!item) throw new Error("المستوى غير موجود في قاعدة البيانات");
-    await apiPost("updateLevel",{id:item.id,name:v.trim(),status:"active"});
-    await refreshFromGoogle(); renderSettings();
-  } catch(e){alert(e.message)}
-}
-async function deleteLevel(i){
-  const x=settings(), name=x.levels[i];
-  if(db().students.some(s=>s.level===name))return alert("لا يمكن حذف مستوى مستخدم لدى أحد الطلاب");
-  if(!confirm("حذف المستوى؟"))return;
-  try { const remote=await apiGet("getData"); const item=(remote.levels||[]).find(z=>String(z.name)===name); if(!item)throw new Error("المستوى غير موجود"); await apiPost("deleteLevel",{id:item.id}); await refreshFromGoogle(); renderSettings(); }
-  catch(e){alert(e.message)}
-}
-async function addMethod(){
-  const v=prompt("اسم طريقة الدفع الجديدة:"); if(!v?.trim())return;
-  try { await apiPost("addMethod",{name:v.trim()}); await refreshFromGoogle(); renderSettings(); }
-  catch(e){alert(e.message)}
-}
-async function editMethod(i){
-  const x=settings(), v=prompt("تعديل طريقة الدفع:",x.methods[i]); if(!v?.trim())return;
-  try { const remote=await apiGet("getData"); const item=(remote.methods||[]).find(z=>String(z.name)===String(x.methods[i])); if(!item)throw new Error("طريقة الدفع غير موجودة"); await apiPost("updateMethod",{id:item.id,name:v.trim(),status:"active"}); await refreshFromGoogle(); renderSettings(); }
-  catch(e){alert(e.message)}
-}
-async function deleteMethod(i){
-  const x=settings(), name=x.methods[i];
-  if(db().payments.some(p=>p.method===name))return alert("لا يمكن حذف طريقة دفع مستخدمة في عمليات سابقة");
-  if(!confirm("حذف طريقة الدفع؟"))return;
-  try { const remote=await apiGet("getData"); const item=(remote.methods||[]).find(z=>String(z.name)===name); if(!item)throw new Error("طريقة الدفع غير موجودة"); await apiPost("deleteMethod",{id:item.id}); await refreshFromGoogle(); renderSettings(); }
-  catch(e){alert(e.message)}
-}
+function openStatement(id){location.href=`student.html?id=${encodeURIComponent(id)}`;}
 
-/* Load Google data after the page's initial render */
-window.addEventListener("load", () => {
-  refreshFromGoogle(true);
-});
-
-/* =====================================================
-   تحديث مركز غيم - رقم ولي الأمر + منع تكرار الضغط
-===================================================== */
-
-function buttonBusy(button, text = "جاري التنفيذ...") {
-  if (!button || button.dataset.busy === "1") return false;
-  button.dataset.busy = "1";
-  button.dataset.originalText = button.innerHTML;
-  button.disabled = true;
-  button.classList.add("is-busy");
-  button.innerHTML = `<span class="busy-spinner"></span>${text}`;
-  return true;
-}
-
-function buttonReady(button) {
-  if (!button) return;
-  button.disabled = false;
-  button.dataset.busy = "0";
-  if (button.dataset.originalText !== undefined) {
-    button.innerHTML = button.dataset.originalText;
-  }
-  button.classList.remove("is-busy");
-}
-
-function bindActionButtons() {
-  document.addEventListener("click", function (event) {
-    const button = event.target.closest("button");
-    if (!button || button.disabled) return;
-    if (button.dataset.noBusy === "1" || button.classList.contains("menu") || button.classList.contains("close")) return;
-    if (button.dataset.busy === "1") {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  }, true);
-}
-
-/* إضافة رقم ولي الأمر */
-function getGuardianPhone() {
-  return (document.getElementById("sGuardianPhone")?.value || "").trim();
-}
-
-function initStudentPage() {
-  renderLevelOptions();
-  if (window.sCreated) sCreated.value = today();
-  renderLevelCards();
-  renderStudents();
-}
-
-function openStudent(id) {
-  studentModal.classList.add("show");
-  renderLevelOptions();
-  const d = db();
-  const s = d.students.find(x => x.id === id);
-
-  if (s) {
-    studentModalTitle.textContent = "تعديل بيانات الطالب";
-    sId.value = s.id;
-    sNumber.value = s.number || "";
-    sName.value = s.name || "";
-    if (window.sGuardianPhone) sGuardianPhone.value = s.guardianPhone || "";
-    sLevel.value = s.level || "";
-    if (window.sCreated) sCreated.value = s.createdAt || today();
-    sFees.value = s.fees || "";
-    sNotes.value = s.notes || "";
-  } else {
-    studentModalTitle.textContent = "إضافة طالب";
-    sId.value = "";
-    sNumber.value = typeof nextStudentNumber === "function" ? nextStudentNumber() : "";
-    sName.value = "";
-    if (window.sGuardianPhone) sGuardianPhone.value = "";
-    sCreated.value = today();
-    sFees.value = "";
-    sNotes.value = "";
-  }
-}
-
-async function saveStudent(button) {
-  button = button || document.querySelector("#studentModal .primary.wide");
-  if (!buttonBusy(button, "جاري التسجيل...")) return;
-
-  try {
-    const id = sId.value;
-    const name = sName.value.trim();
-    const number = sNumber.value.trim();
-    const guardianPhone = getGuardianPhone();
-    const level = sLevel.value;
-    const fees = Number(sFees.value);
-    const created = sCreated.value || today();
-
-    if (!name || !number || !level || fees < 0) {
-      throw new Error("أكمل بيانات الطالب");
-    }
-
-    const d = db();
-
-    if (id) {
-      const s = d.students.find(x => x.id === id);
-      if (!s) throw new Error("الطالب غير موجود");
-      Object.assign(s, {
-        name, number, guardianPhone, level, fees,
-        createdAt: created,
-        notes: sNotes.value.trim()
-      });
-    } else {
-      d.students.push({
-        id: crypto.randomUUID(),
-        number,
-        name,
-        guardianPhone,
-        level,
-        fees,
-        notes: sNotes.value.trim(),
-        createdAt: created
-      });
-    }
-
-    saveDB(d);
-    closeStudent();
-    renderLevelCards();
-    renderStudents();
-
-    alert(id ? "تم تعديل بيانات الطالب" : "تم تسجيل الطالب بنجاح");
-
-  } catch (error) {
-    alert(error.message || "حدث خطأ");
-  } finally {
-    buttonReady(button);
-  }
-}
-
-function renderStudents() {
-  if (!window.studentsTable) return;
-
-  const d = db();
-  const q = (studentSearch?.value || "").trim();
-  const l = levelFilter?.value || "";
-
-  studentsTable.innerHTML =
-    d.students
-      .filter(s =>
-        (!q ||
-          s.name.includes(q) ||
-          String(s.number || "").includes(q) ||
-          String(s.guardianPhone || "").includes(q)) &&
-        (!l || s.level === l)
-      )
-      .map(s => {
-        const paid = d.payments
-          .filter(p => p.studentId === s.id)
-          .reduce((a, p) => a + Number(p.amount), 0);
-
-        return `
-          <tr>
-            <td>${s.number || "-"}</td>
-            <td><b>${s.name}</b></td>
-            <td>${s.guardianPhone || "-"}</td>
-            <td>${s.level}</td>
-            <td>${s.createdAt || "-"}</td>
-            <td>${money(s.fees)} ريال</td>
-            <td>${money(paid)} ريال</td>
-            <td>${money(Math.max(s.fees - paid, 0))} ريال</td>
-            <td>
-              <a class="link" href="statement.html?id=${s.id}">كشف</a>
-              · <button class="link" onclick="openStudent('${s.id}')">تعديل</button>
-              · <button class="link danger" onclick="deleteStudent('${s.id}')">حذف</button>
-            </td>
-          </tr>`;
-      })
-      .join("") ||
-    '<tr><td colspan="9">لا توجد نتائج</td></tr>';
-}
-
-function renderStatement() {
-  const id = new URLSearchParams(location.search).get("id");
-  const d = db();
-  const s = d.students.find(x => x.id === id);
-
-  if (!s) {
-    if (window.statementTitle) statementTitle.textContent = "الطالب غير موجود";
-    return;
-  }
-
-  const ps = d.payments
-    .filter(p => p.studentId === id)
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  const paid = ps.reduce((a, p) => a + Number(p.amount), 0);
-
-  statementTitle.textContent = "كشف حساب — " + s.name;
-  stName.textContent = s.name;
-  if (window.stNumber) stNumber.textContent = s.number || "-";
-  if (window.stGuardian) stGuardian.textContent = s.guardianPhone || "-";
-  stLevel.textContent = s.level;
-  stFees.textContent = money(s.fees);
-  stRemain.textContent = money(Math.max(s.fees - paid, 0));
-
-  statementTable.innerHTML =
-    ps.map((p, i) => `
-      <tr>
-        <td>${i + 1}</td>
-        <td>${p.date}</td>
-        <td>${money(p.amount)} ريال</td>
-        <td>${p.method}</td>
-        <td>${p.ref || "-"}</td>
-        <td>${p.notes || "-"}</td>
-      </tr>
-    `).join("") ||
-    '<tr><td colspan="6">لا توجد دفعات مسجلة</td></tr>';
-}
-
-/* منع النقر المكرر على زر تسجيل الدفعة */
-async function savePayment(button) {
-  button = button || document.querySelector("#paymentForm .primary.wide, main .form-card .primary.wide");
-  if (!buttonBusy(button, "جاري تسجيل الدفعة...")) return;
-
-  try {
-    const d = db();
-    const sid = pStudent.value;
-    const amount = Number(pAmount.value);
-
-    if (!sid || !amount) {
-      throw new Error("اختر الطالب وأدخل المبلغ");
-    }
-
-    const s = d.students.find(x => x.id === sid);
-    const paid = d.payments
-      .filter(p => p.studentId === sid)
-      .reduce((a, p) => a + Number(p.amount), 0);
-
-    if (amount > Math.max(s.fees - paid, 0)) {
-      throw new Error("المبلغ أكبر من المتبقي على الطالب");
-    }
-
-    d.payments.push({
-      id: crypto.randomUUID(),
-      studentId: sid,
-      date: pDate.value || today(),
-      amount,
-      method: pMethod.value,
-      ref: pRef.value.trim(),
-      notes: pNotes.value.trim()
-    });
-
-    saveDB(d);
-
-    alert("تم تسجيل الدفعة بنجاح");
-    location.href = "payments.html";
-
-  } catch (error) {
-    alert(error.message || "حدث خطأ");
-    buttonReady(button);
-  }
-}
-
-/* ربط حالة الضغط عند تحميل أي صفحة */
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", bindActionButtons);
-} else {
-  bindActionButtons();
-}
-
-/* =====================================================
-   FINAL GOOGLE SHEETS OPERATIONS
-   آخر تعريفات الدوال - تمنع التخزين المحلي عند الحفظ
-===================================================== */
-
-async function saveStudent(button) {
-  button = button || document.querySelector('#studentModal .primary.wide');
-  if (!buttonBusy(button, 'جاري التسجيل...')) return;
-
-  try {
-    const id = (document.getElementById('sId')?.value || '').trim();
-    const name = (document.getElementById('sName')?.value || '').trim();
-    const number = (document.getElementById('sNumber')?.value || '').trim();
-    const guardianPhone = (document.getElementById('sGuardianPhone')?.value || '').trim();
-    const level = document.getElementById('sLevel')?.value || '';
-    const fees = Number(document.getElementById('sFees')?.value || 0);
-    const createdAt = document.getElementById('sCreated')?.value || today();
-    const notes = (document.getElementById('sNotes')?.value || '').trim();
-
-    if (!name || !number || !level || fees < 0) {
-      throw new Error('أكمل بيانات الطالب');
-    }
-
-    const payload = {
-      id: id,
-      number: number,
-      name: name,
-      guardianPhone: guardianPhone,
-      level: level,
-      fees: fees,
-      notes: notes,
-      createdAt: createdAt,
-      status: 'active'
-    };
-
-    const result = await apiPost(
-      id ? 'updateStudent' : 'addStudent',
-      payload
-    );
-
-    await refreshFromGoogle(true);
-    closeStudent();
-    renderLevelCards?.();
-    renderStudents?.();
-
-    alert(id ? 'تم تعديل بيانات الطالب بنجاح' : 'تم تسجيل الطالب بنجاح');
-
-  } catch (error) {
-    console.error(error);
-    alert(error.message || 'تعذر حفظ بيانات الطالب');
-  } finally {
-    buttonReady(button);
-  }
-}
-
-async function savePayment(button) {
-  button = button || document.querySelector('#paymentForm .primary.wide, main .form-card .primary.wide');
-  if (!buttonBusy(button, 'جاري تسجيل الدفعة...')) return;
-
-  try {
-    const studentId = document.getElementById('pStudent')?.value || '';
-    const amount = Number(document.getElementById('pAmount')?.value || 0);
-    const date = document.getElementById('pDate')?.value || today();
-    const method = document.getElementById('pMethod')?.value || '';
-    const ref = (document.getElementById('pRef')?.value || '').trim();
-    const notes = (document.getElementById('pNotes')?.value || '').trim();
-
-    if (!studentId || amount <= 0) {
-      throw new Error('اختر الطالب وأدخل المبلغ');
-    }
-
-    await apiPost('addPayment', {
-      studentId: studentId,
-      date: date,
-      amount: amount,
-      method: method,
-      ref: ref,
-      notes: notes
-    });
-
-    await refreshFromGoogle(true);
-
-    alert('تم تسجيل الدفعة بنجاح');
-    location.href = 'payments.html';
-
-  } catch (error) {
-    console.error(error);
-    alert(error.message || 'تعذر تسجيل الدفعة');
-    buttonReady(button);
-  }
-}
-
-async function deleteStudent(id, button) {
-  const d = db();
-  const student = d.students.find(x => String(x.id) === String(id));
-  if (!student) return;
-
-  if (!confirm(`حذف الطالب "${student.name}"؟ سيتم حذف سجله المالي أيضًا.`)) return;
-
-  if (button && !buttonBusy(button, 'جاري الحذف...')) return;
-
-  try {
-    await apiPost('deleteStudent', { id: id });
-    await refreshFromGoogle(true);
-    renderLevelCards?.();
-    renderStudents?.();
-    alert('تم حذف الطالب بنجاح');
-  } catch (error) {
-    console.error(error);
-    alert(error.message || 'تعذر حذف الطالب');
-  } finally {
-    buttonReady(button);
-  }
-}
+(function(){
+ try{if(location.pathname.endsWith("login.html")){if(isLoggedIn())location.replace("index.html");}else requireAuth();}catch(e){console.error(e);}
+})();
