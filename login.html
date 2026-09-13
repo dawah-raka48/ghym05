@@ -14,7 +14,7 @@ function doLogin(){
   if(code===loginCode()){
     sessionStorage.setItem(AUTH_KEY,"1");
     location.replace("index.html");
-  }else{
+  }else{ 
     error.textContent="كود الدخول غير صحيح";
     error.classList.add("show");
     input.focus();
