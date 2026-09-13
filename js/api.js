@@ -29,3 +29,7 @@ async function apiGetData() {
 async function apiSetup() {
   return apiGet("setup");
 }
+
+async function apiLogin(code) {
+  return apiPost("login", { code: String(code || "") });
+}
