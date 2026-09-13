@@ -4,6 +4,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbw7M0WOL57oJXEwhJ0jgQiS
 async function apiGet(action="ping") {
   const url = API_URL + "?action=" + encodeURIComponent(action);
   const res = await fetch(url, { method: "GET", cache: "no-store" });
+  if (!res.ok) throw new Error("تعذر الاتصال بالخادم: " + res.status);
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || "فشل الاتصال بالخادم");
   return data;
@@ -15,7 +16,16 @@ async function apiPost(action, payload={}) {
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({ action, data: payload })
   });
+  if (!res.ok) throw new Error("تعذر تنفيذ الطلب: " + res.status);
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || "فشل تنفيذ العملية");
   return data;
+}
+
+async function apiGetData() {
+  return apiGet("getData");
+}
+
+async function apiSetup() {
+  return apiGet("setup");
 }
